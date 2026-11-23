@@ -1,0 +1,243 @@
+{
+  "rules": [
+    {
+      "id": "LS-001",
+      "title": "SSH brute force",
+      "description": "Five or more failed SSH logins from one source IP within 5 minutes.",
+      "severity": "high",
+      "mitre": ["T1110.001"],
+      "source": "linux_auth",
+      "type": "threshold",
+      "match": {"event_type": "ssh_failed_login"},
+      "threshold": {"count": 5, "window_seconds": 300, "group_by": ["src_ip"]}
+    },
+    {
+      "id": "LS-002",
+      "title": "SSH password spraying",
+      "description": "One source IP tried four or more different usernames over SSH within 10 minutes.",
+      "severity": "high",
+      "mitre": ["T1110.003"],
+      "source": "linux_auth",
+      "type": "threshold",
+      "match": {"event_type": "ssh_failed_login"},
+      "threshold": {"count": 4, "window_seconds": 600, "group_by": ["src_ip"], "distinct": "user"}
+    },
+    {
+      "id": "LS-003",
+      "title": "Successful SSH login after brute force",
+      "description": "A source IP that generated repeated SSH failures then logged in successfully - likely compromised credentials.",
+      "severity": "critical",
+      "mitre": ["T1110", "T1078"],
+      "source": "linux_auth",
+      "type": "sequence",
+      "sequence": {
+        "first": {"match": {"event_type": "ssh_failed_login"}, "count": 5},
+        "then": {"match": {"event_type": "ssh_successful_login"}},
+        "window_seconds": 900,
+        "group_by": ["src_ip"]
+      }
+    },
+    {
+      "id": "LS-004",
+      "title": "Sudo used to spawn a root shell",
+      "description": "sudo was used to start an interactive root shell.",
+      "severity": "medium",
+      "mitre": ["T1548.003"],
+      "source": "linux_auth",
+      "type": "match",
+      "match": {
+        "event_type": "sudo_command",
+        "target_user": "root",
+        "command": {"regex": "(/bin/(ba|z|da)?sh\\b|\\bsu\\b|\\s-i\\b|-s$|python[0-9.]* -c|chmod \\+s|/etc/shadow)"}
+      }
+    },
+    {
+      "id": "LS-005",
+      "title": "New local Linux user created",
+      "description": "A new local account was created - verify it was an approved change.",
+      "severity": "medium",
+      "mitre": ["T1136.001"],
+      "source": "linux_auth",
+      "type": "match",
+      "match": {"event_type": "user_created"}
+    },
+    {
+      "id": "LS-006",
+      "title": "Linux user added to privileged group",
+      "description": "An account was added to sudo/wheel/admin/root group.",
+      "severity": "high",
+      "mitre": ["T1098"],
+      "source": "linux_auth",
+      "type": "match",
+      "match": {"event_type": "user_added_to_group", "group": ["sudo", "wheel", "admin", "root", "adm"]}
+    },
+    {
+      "id": "LS-007",
+      "title": "Windows logon brute force",
+      "description": "Five or more failed Windows logons (4625) from one source within 5 minutes.",
+      "severity": "high",
+      "mitre": ["T1110.001"],
+      "source": "windows",
+      "type": "threshold",
+      "match": {"event_type": "win_logon_failure"},
+      "threshold": {"count": 5, "window_seconds": 300, "group_by": ["src_ip"]}
+    },
+    {
+      "id": "LS-008",
+      "title": "Windows password spraying",
+      "description": "One source failed to log on as four or more distinct accounts within 10 minutes.",
+      "severity": "high",
+      "mitre": ["T1110.003"],
+      "source": "windows",
+      "type": "threshold",
+      "match": {"event_type": "win_logon_failure"},
+      "threshold": {"count": 4, "window_seconds": 600, "group_by": ["src_ip"], "distinct": "user"}
+    },
+    {
+      "id": "LS-009",
+      "title": "Windows logon success after brute force",
+      "description": "Repeated 4625 failures followed by a 4624 success from the same source.",
+      "severity": "critical",
+      "mitre": ["T1110", "T1078"],
+      "source": "windows",
+      "type": "sequence",
+      "sequence": {
+        "first": {"match": {"event_type": "win_logon_failure"}, "count": 5},
+        "then": {"match": {"event_type": "win_logon_success", "logon_type": [3, 10]}},
+        "window_seconds": 900,
+        "group_by": ["src_ip"]
+      }
+    },
+    {
+      "id": "LS-010",
+      "title": "Windows user account created",
+      "description": "Event 4720 - a user account was created.",
+      "severity": "medium",
+      "mitre": ["T1136.001"],
+      "source": "windows",
+      "type": "match",
+      "match": {"event_type": "win_user_created"}
+    },
+    {
+      "id": "LS-011",
+      "title": "Member added to privileged Windows group",
+      "description": "An account was added to Administrators, Domain Admins, Enterprise Admins or Remote Desktop Users.",
+      "severity": "high",
+      "mitre": ["T1098"],
+      "source": "windows",
+      "type": "match",
+      "match": {
+        "event_type": "win_group_member_added",
+        "group": ["Administrators", "Domain Admins", "Enterprise Admins", "Remote Desktop Users", "Backup Operators"]
+      }
+    },
+    {
+      "id": "LS-012",
+      "title": "Windows Security log cleared",
+      "description": "Event 1102 - the audit log was cleared. Common anti-forensics step.",
+      "severity": "critical",
+      "mitre": ["T1070.001"],
+      "source": "windows",
+      "type": "match",
+      "match": {"event_type": "win_log_cleared"}
+    },
+    {
+      "id": "LS-013",
+      "title": "Suspicious / obfuscated PowerShell",
+      "description": "PowerShell using encoded commands, download cradles or in-memory execution.",
+      "severity": "high",
+      "mitre": ["T1059.001", "T1027"],
+      "source": "windows",
+      "type": "match",
+      "match": {
+        "any_of": [
+          {"ScriptBlockText": {"regex": "(frombase64string|invoke-expression|\\biex\\b|downloadstring|downloadfile|net\\.webclient|invoke-webrequest|-enc(odedcommand)?\\s|bypass|invoke-mimikatz|amsiutils)"}},
+          {"CommandLine": {"regex": "powershell.*(-e(nc|ncodedcommand)?\\s+[A-Za-z0-9+/=]{20,}|-nop|-w(indowstyle)?\\s+hidden|downloadstring|iex\\b|bypass)"}}
+        ]
+      }
+    },
+    {
+      "id": "LS-014",
+      "title": "Suspicious service installed",
+      "description": "A new service whose binary path points at a shell or a user-writable folder.",
+      "severity": "high",
+      "mitre": ["T1543.003"],
+      "source": "windows",
+      "type": "match",
+      "match": {
+        "event_type": "win_service_installed",
+        "ImagePath": {"regex": "(cmd(\\.exe)?\\s*/c|powershell|\\\\temp\\\\|\\\\appdata\\\\|\\\\users\\\\public\\\\|\\\\programdata\\\\[^\\\\]+\\.exe|rundll32|mshta)"}
+      }
+    },
+    {
+      "id": "LS-015",
+      "title": "Windows account lockout",
+      "description": "Event 4740 - an account was locked out, often a side effect of password guessing.",
+      "severity": "medium",
+      "mitre": ["T1110"],
+      "source": "windows",
+      "type": "match",
+      "match": {"event_type": "win_account_locked"}
+    },
+    {
+      "id": "LS-016",
+      "title": "Web SQL injection attempt",
+      "description": "Request contains common SQL injection payloads.",
+      "severity": "high",
+      "mitre": ["T1190"],
+      "source": "web",
+      "type": "match",
+      "match": {
+        "path_decoded": {"regex": "(union(\\s|/\\*\\*/)+(all\\s+)?select|'\\s*or\\s*'?\\d+'?\\s*=\\s*'?\\d|\\bor\\s+1\\s*=\\s*1|sleep\\(\\s*\\d+\\s*\\)|benchmark\\(|information_schema|load_file\\(|into\\s+outfile|'\\s*--|;\\s*drop\\s+table|xp_cmdshell)"}
+      }
+    },
+    {
+      "id": "LS-017",
+      "title": "Web path traversal / file inclusion attempt",
+      "description": "Request tries to escape the web root or include local files.",
+      "severity": "high",
+      "mitre": ["T1190", "T1083"],
+      "source": "web",
+      "type": "match",
+      "match": {
+        "path_decoded": {"regex": "(\\.\\./|\\.\\.\\\\|/etc/(passwd|shadow|hosts)|win\\.ini|boot\\.ini|php://|file://|expect://|/proc/self/environ)"}
+      }
+    },
+    {
+      "id": "LS-018",
+      "title": "Web cross-site scripting attempt",
+      "description": "Request contains script injection payloads.",
+      "severity": "medium",
+      "mitre": ["T1190"],
+      "source": "web",
+      "type": "match",
+      "match": {
+        "path_decoded": {"regex": "(<script|javascript:|onerror\\s*=|onload\\s*=|<svg[^>]*on\\w+\\s*=|alert\\(|document\\.cookie)"}
+      }
+    },
+    {
+      "id": "LS-019",
+      "title": "Known attack tool user agent",
+      "description": "User agent belongs to a common vulnerability scanner or brute-force tool.",
+      "severity": "medium",
+      "mitre": ["T1595.002"],
+      "source": "web",
+      "type": "threshold",
+      "match": {
+        "user_agent": {"regex": "(sqlmap|nikto|nmap|gobuster|dirbuster|dirb/|feroxbuster|ffuf|wpscan|masscan|zgrab|nuclei|hydra|acunetix|nessus|openvas|wfuzz)"}
+      },
+      "threshold": {"count": 1, "window_seconds": 3600, "group_by": ["src_ip", "user_agent"]}
+    },
+    {
+      "id": "LS-020",
+      "title": "Web content discovery (directory brute force)",
+      "description": "Twenty or more 404 responses to one source within a minute.",
+      "severity": "medium",
+      "mitre": ["T1595.003"],
+      "source": "web",
+      "type": "threshold",
+      "match": {"status": 404},
+      "threshold": {"count": 20, "window_seconds": 60, "group_by": ["src_ip"]}
+    }
+  ]
+}
